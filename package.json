@@ -1,15 +1,5 @@
 {
-  "name": "soundly",
-  "version": "1.0.0",
-  "description": "REST soundly",
-  "main": "index.js",
-  "scripts": {},
-  "keywords": [
-    "rest",
-    "soundly"
-  ],
   "author": "Ronald Borla",
-  "license": "MIT",
   "dependencies": {
     "bcrypt": "^1.0.3",
     "chalk": "^2.3.0",
@@ -20,6 +10,8 @@
     "glob": "^7.1.2",
     "image-layers": "^1.0.1",
     "imagemin": "^5.3.1",
+    "imagemin-mozjpeg": "^7.0.0",
+    "imagemin-pngquant": "^5.0.1",
     "jshint": "^2.9.5",
     "jsonwebtoken": "^8.1.0",
     "latinize": "^0.4.0",
@@ -30,5 +22,19 @@
     "q": "^1.5.1",
     "read-chunk": "^2.1.0",
     "restify": "^6.3.4"
-  }
+  },
+  "description": "REST soundly",
+  "engines": {
+    "node": ">=8.9.1"
+  },
+  "keywords": [
+    "rest",
+    "soundly"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "name": "soundly",
+  "repository": "https://github.com/ronaldborla/soundly",
+  "scripts": {},
+  "version": "1.0.0"
 }

@@ -7,18 +7,23 @@ var _ = require('lodash'),
  * Authentication model
  */
 module.exports = function(Schema) {
-  const Exceptions  = this.api.soundly.Exceptions;
-  this.name         = 'Authentication';
+  const Exceptions    = this.api.Exceptions;
+  this.name           = 'Authentication';
+  this.options.paths  = {
+    type: {
+      enum: [
+        'email',
+        'username'
+      ]
+    }
+  };
 
   /**
    * Authentication schema
    */
   const Authentication = new Schema({
     type: {
-      enum: [
-        'email',
-        'username'
-      ],
+      enum: this.options.paths.type.enum,
       type: String
     },
     user: {

@@ -9,16 +9,26 @@ const fs 		= require('fs-extra'),
  * Session model
  */
 module.exports = function(Schema) {
-	const Exceptions  = this.api.soundly.Exceptions;
+	const Exceptions  = this.api.Exceptions;
 	const keys 				= {
 		private: 	null,
 		public: 	null
 	};
-	this.name 				= 'Session';
-	this.options.keys = {
-		private: 	this.api.path(this.api.paths.keys) + '/session/private',
-		public: 	this.api.path(this.api.paths.keys) + '/session/public'
+	this.name 					= 'Session';
+	this.options.keys 	= {
+		private: 	this.api.path('/session/private', 'keys'),
+		public: 	this.api.path('/session/public', 	'keys')
 	};
+	this.options.paths  = {
+		status: {
+			default: 'active',
+			enum: [
+	      'active',
+	      'inactive',
+	      'expired'
+			]
+		}
+	}
 
 	/**
 	 * Add hooks
@@ -43,13 +53,9 @@ module.exports = function(Schema) {
 	  },
 	  remember: Boolean,
 	  status: {
-	    default: 'active',
-	    enum: [
-	      'active',
-	      'inactive',
-	      'expired'
-	    ],
-	    type: String
+	    default: 	this.options.paths.status.default,
+	    enum: 		this.options.paths.status.enum,
+	    type: 		String
 	  },
 	  token:    String
 	});

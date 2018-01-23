@@ -66,32 +66,41 @@ class Utils {
 	/**
 	 * Perform hook
 	 */
-	hook(instance, callbacks, action, args) {
+	hook(instance, callbacks, args, sync) {
 		args = args || [];
-		return this.queue(callbacks.filter((callback) => {
-			return fs.existsSync(callback);
-		}).map((callback) => {
-			return () => {
-				return q.Promise((resolve, reject) => {
-					var rejected = false;
-					var timeout = setTimeout(() => {
-						rejected = true;
-						reject('Hook timeout: ' + callback);
-					}, (instance.config.hooks || {}).timeout || 30000);
-					q.when(require(callback).apply(instance, args || []))
-						.then(done(resolve))
-						.catch(done(reject))
-						.finally(() => {
-							clearTimeout(timeout);
-						});
-					function done(method) {
-						return (value) => {
-							return method(value);
-						};
-					}
-				});
-			};
-		}));
+		if (!!sync) {
+			(callbacks || []).forEach((callback) => {
+				if (fs.existsSync(callback)) {
+					require(callback).apply(instance, args || []);
+				}
+			});
+			return instance;
+		} else {
+			return this.queue(callbacks.filter((callback) => {
+				return fs.existsSync(callback);
+			}).map((callback) => {
+				return () => {
+					return q.Promise((resolve, reject) => {
+						var rejected = false;
+						var timeout = setTimeout(() => {
+							rejected = true;
+							reject('Hook timeout: ' + callback);
+						}, (instance.config.hooks || {}).timeout || 30000);
+						q.when(require(callback).apply(instance, args || []))
+							.then(done(resolve))
+							.catch(done(reject))
+							.finally(() => {
+								clearTimeout(timeout);
+							});
+						function done(method) {
+							return (value) => {
+								return method(value);
+							};
+						}
+					});
+				};
+			}));
+		}
 	}
 
 	/**

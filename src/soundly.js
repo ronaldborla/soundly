@@ -16,11 +16,11 @@ module.exports = class Soundly {
 	 * Soundly constructor
 	 */
 	constructor() {
-		this.Exceptions = require('./lib/exceptions');
 		this.apis 			= [];
 		this.cache  		= {};
 		this.dirname 		= __dirname;
 		this.env 				= (process.env.NODE_ENV || 'development').toLowerCase();
+		this.Navigator  = require('./lib/navigator');
 		this.routes 		= [];
 		this.utils 			= utils;
 		this.root 			= path.dirname(this.utils.getRootModule(module).filename);
@@ -29,7 +29,6 @@ module.exports = class Soundly {
 			api: 				'/api',
 			config: 		'/config',
 			hooks: 			'/hooks',
-			media: 			'/media',
 			public: 		'/public',
 			resources: 	'/resources'
 		}, this.package.paths || {});
@@ -39,6 +38,9 @@ module.exports = class Soundly {
 			require(config) : 
 			{}
 		);
+		if (_.isUndefined(this.config.root)) {
+			this.config.root = 'api/';
+		}
 	}
 
 	/**
@@ -64,13 +66,25 @@ module.exports = class Soundly {
 	}
 
 	/**
+	 * Handle error page
+	 */
+	handle(req, res, code) {
+		(new this.Exceptions([({
+			401: 'BAD_REQUEST',
+			403: 'PERMISSION_DENIED',
+			404: 'RESOURCE_NOT_FOUND',
+			405: 'METHOD_NOT_ALLOWED'
+		})[code]])).send(res);
+	}
+
+	/**
 	 * Perform hook
 	 */
-	hook(action, args) {
+	hook(action, args, sync) {
 		return this.utils.hook(this, [
 			__dirname + '/hooks/' + action + '.js',
 			this.path(this.paths.hooks) + '/' + action + '.js'
-		], action, args);
+		], args, sync);
 	}
 
 	/**
@@ -89,15 +103,13 @@ module.exports = class Soundly {
 	}
 
 	/**
-	 * Start server
+	 * Initialize
 	 */
-	start(port, host, versions) {
+	init(versions) {
 		var self = this;
 		if (!_.isUndefined(versions) && !_.isArray(versions)) {
 			versions = [versions];
 		}
-		this.host = host || 'localhost';
-		this.port = port;
 		this.apis = this.versions.map((version) => {
 			if (_.isUndefined(versions) || (versions.indexOf(version) >= 0)) {
 				return new API(this, version);
@@ -105,13 +117,38 @@ module.exports = class Soundly {
 		}).filter((api) => {
 			return !!api;
 		});
+		return this.hook('apis-start-before').then(() => {
+			return this.utils.queue(this.apis.map((api) => {
+				return () => {
+					return api.start();
+				};
+			}));
+		}).then(() => {
+			return this.hook('apis-start-after');
+		}).then(() => {
+			return this;
+		});
+	}
+
+	/**
+	 * Start server
+	 */
+	start(port, host, versions) {
+		var self = this;
+		this.host = host || 'localhost';
+		this.port = port;
 		return this.utils.queue([
+			hook('exceptions-register-before'),
+			registerExceptions,
+			hook('exceptions-register-after'),
 			hook('server-create-before'),
-			createServer(),
+			createServer,
 			hook('server-create-after'),
-			startAPIs(),
+			hook('server-initialize-before'),
+			initializeServer,
+			hook('server-initialize-after'),
 			hook('server-listen-before'),
-			listen(),
+			listen,
 			hook('server-listen-after')
 		]).catch((err) => {
 			this.error(err);
@@ -123,15 +160,16 @@ module.exports = class Soundly {
 		 * Create server
 		 */
 		function createServer() {
-			return () => {
-				self.server = restify.createServer({
-				  name:     self.config.name || 'soundly',
-				  version:  self.apis.map((api) => {
-				  	return api.version;
-				  })
-				});
-				return self.log('Created server `' + self.server.name + '`', 'green');
-			};
+			self.server = restify.createServer({
+			  name:     self.config.name || 'soundly',
+			  version:  self.apis.map((api) => {
+			  	return api.version;
+			  })
+			});
+			self.server.on('NotFound', (req, res) => {
+				self.handle(req, res, 404);
+			});
+			return self.log('Created server `' + self.server.name + '`', 'green');
 		}
 
 		/**
@@ -144,29 +182,30 @@ module.exports = class Soundly {
 		}
 
 		/**
-		 * Listen
+		 * Initialize server
 		 */
-		function listen() {
-			return () => {
-				return q.Promise((resolve) => {
-					self.server.listen(port, host, () => {
-						resolve(self.log('Started server at port `' + port + '`...', 'green'));
-					});
-				});
-			};
+		function initializeServer() {
+			return self.init(versions);
 		}
 
 		/**
-		 * Start APIs
+		 * Listen
 		 */
-		function startAPIs() {
-			return () => {
-				return self.utils.queue(self.apis.map((api) => {
-					return () => {
-						return api.start();
-					};
-				}));
-			};
+		function listen() {
+			return q.Promise((resolve) => {
+				self.server.listen(port, host, () => {
+					resolve(self.log('Started server at port `' + port + '`...', 'green'));
+				});
+			});
+		}
+
+		/**
+		 * Register exceptions
+		 */
+		function registerExceptions() {
+			return q.Promise((resolve) => {
+				resolve(self.Exceptions = require('./lib/exceptions').apply(self, [require('./exceptions/server') || {}]));
+			});
 		}
 	}
 }

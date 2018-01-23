@@ -8,7 +8,7 @@ const _ 			= require('lodash'),
  * User model
  */
 module.exports = function(Schema) {
-	const Exceptions  			= this.api.soundly.Exceptions,
+	const Exceptions  			= this.api.Exceptions,
 				model 						= this,
 				mongoose 					= this.api.mongoose,
 				utils 						= this.api.utils;
@@ -16,14 +16,33 @@ module.exports = function(Schema) {
 	this.options.attributes = {
 		excluded: ['password']
 	};
-	this.options.password 	= {
-		salt_rounds: 10
+	this.options.paths 			= {
+		password: {
+			salt_rounds: 10
+		},
+		roles: {
+			bits: {
+				member: 		1,
+				admin:  		2,
+				moderator: 	4
+			}
+		},
+		status: {
+			default: 'pending',
+			enum: [
+	      'active',
+	      'deleted',
+	      'inactive',
+	      'pending',
+	      'suspended'
+	    ]
+		}
 	};
-	this.options.roles  		= {
-		member: 		1,
-		admin:  		2,
-		moderator: 	4
-	};
+
+	/**
+	 * Hooks
+	 */
+	this.hooks['pre-save'] = beforeSave;
 
 	/** 
 	 * User schema
@@ -35,26 +54,15 @@ module.exports = function(Schema) {
 	  }],
 	  password: 	String,
 	  roles: {
-	  	default: 	this.options.roles.member,
+	  	default: 	this.options.paths.roles.bits.member,
 	  	type: 		Number
 	  },
 	  status: {
-	    default: 'pending',
-	    enum: [
-	      'pending',
-	      'active',
-	      'inactive',
-	      'suspended',
-	      'deleted'
-	    ],
-	    type: String
+	    default: 	this.options.paths.status.default,
+	    enum: 		this.options.paths.status.enum,
+	    type: 		String
 	  }
 	});
-
-	/**
-	 * Pre methods
-	 */
-	User.pre('save', beforeSave);
 
 	/**
 	 * Methods
@@ -103,11 +111,10 @@ module.exports = function(Schema) {
 	 * Before saving
 	 */
 	function beforeSave(next) {
-	  this.updated = Date.now();
 	  if (!this.isModified('password')) {
 	    return next();
 	  }
-	  bcrypt.hash(this.password, model.options.password.salt_rounds, (err, hash) => {
+	  bcrypt.hash(this.password, model.options.paths.password.salt_rounds, (err, hash) => {
 	    if (err) {
 	      return next(err);
 	    }
@@ -121,7 +128,7 @@ module.exports = function(Schema) {
 	 */
 	function getTypes() {
 	  var types = [];
-	  _.forEach(model.options.roles, (value, type) => {
+	  _.forEach(model.options.paths.roles.bits, (value, type) => {
 	    if (this.hasRole(type)) {
 	      types.push(type);
 	    }
@@ -133,7 +140,7 @@ module.exports = function(Schema) {
 	 * Has role
 	 */
 	function hasRole(role) {
-	  return this.roles & model.options.roles[role];
+	  return this.roles & model.options.paths.roles.bits[role];
 	}
 
 	/**
